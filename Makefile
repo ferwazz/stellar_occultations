@@ -16,7 +16,7 @@ tests: install
 
 clean:
 	rm --recursive --force .pytest_cache
-	rm --recursive --force test/__pycache__
+	rm --recursive --force tests/__pycache__
 	rm --recursive --force stellar_occultations/__pycache__
 	rm --recursive --force stellar_occultations.egg-info
 	rm --force .mutmut-cache
