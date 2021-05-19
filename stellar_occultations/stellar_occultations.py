@@ -1,17 +1,10 @@
 #!/usr/bin/env python
-
 # Package for calculate light curves of stellar occultations events
 # LIBRERIA PARA CALCULO DE CURVAS DE LUZ DE OCULTACIONES ESTELARES
-## JOEL CASTRO JULIO 2019
+## JOEL H.CASTRO JULIO 2019
 
-# get_ipython().run_line_magic('matplotlib', 'qt')
-# inline
-# get_ipython().run_line_magic('pylab', '')
 import numpy as np
 import pandas as pd
-
-# import mpld3
-# mpld3.disable_notebook()
 
 
 def cart2pol(x, y):
@@ -26,21 +19,24 @@ def pol2cart(rho, phi):
     return (x, y)
 
 
-def pupilCO(M, D, d):
-    """Generar obstruccion circular"""
-    # M>> tamaño matriz en pixeles
-    # D>> tamaño de matriz en metros
-    # d>> oscurecimiento central en metros
-    m = np.linspace(-D / 2, D / 2, M)
-    a, b = np.meshgrid(m, m)
-    th, r = cart2pol(a, b)
-    P = np.double(r >= d / 2)
+def calculate_image_grid(nPixels, plane):
+    centered_axis = np.linspace(-plane / 2, plane / 2, nPixels)
+    x, y = np.meshgrid(centered_axis, centered_axis)
+    phi_grid, rho_grid = cart2pol(x, y)
+    return phi_grid, rho_grid
 
-    return P
+
+def pupilCO(nPixels, plane, object_diameter):
+    """Generar obstruccion circular"""
+    # nPixels >> tamaño matriz en pixeles
+    # plane >> tamaño de matriz en metros
+    # object_diameter >> oscurecimiento central en metros
+    phi, rho = calculate_image_grid(nPixels, plane)
+    return np.double(rho >= object_diameter / 2)
 
 
 def trasladar(P, smx, smy):
-    """ Trasladar una matriz en direcciones X, Y según el numero de pixeles en cada coordenada  Xpx, Ypx respectivamente... Si mx > 0 Se mueve hacia la derecha, si my > 0 se mueve hacia abajo en las graficas... y VICEVERSA"""
+    """Trasladar una matriz en direcciones X, Y según el numero de pixeles en cada coordenada  Xpx, Ypx respectivamente... Si mx > 0 Se mueve hacia la derecha, si my > 0 se mueve hacia abajo en las graficas... y VICEVERSA"""
     MM = np.zeros(P.shape)
     x, y = MM.shape
     x = int(x / 2)
@@ -82,13 +78,16 @@ def trasladar(P, smx, smy):
     return M2
 
 
-def pupil_doble(M, D, d):
+def pupil_doble(
+    M,
+    D,
+    d,
+):
     """Generar obstruccion tipo Binario de Contacto con la misma area de una obstruccion circular..."""
     # M>> tamaño matriz en pixeles (solo un lado)
     # D>> tamaño de matriz en metros
     # d>> oscurecimiento central en metros como si fuera circular
     r1 = (d / 2) * 0.65
-    # r2=r1*0.82
     r2 = np.sqrt((d / 2) ** 2 - (r1) ** 2)
     d1 = r1 * 2
     d2 = r2 * 2
@@ -98,9 +97,7 @@ def pupil_doble(M, D, d):
     sepX = ((Dx / 2) / D) * M
     # print(sepX)
     sepY = ((Dy / 2) / D) * M
-    m = np.linspace(-D / 2, D / 2, M)
-    a, b = np.meshgrid(m, m)
-    th, r = cart2pol(a, b)
+    th, r = calculate_image_grid(M, D)
     # Generar Objetos
     P1 = np.double(r >= r1)  # Obstruccion grande
     P2 = np.double(r >= r2)  # Obstruccion pequena
@@ -108,8 +105,7 @@ def pupil_doble(M, D, d):
     P = trasladar(P1, -sepX, sepY) + trasladar(P2, sepX, sepY)
     # Binarizar
     P = P == 2
-
-    return P
+    return np.double(P)
 
 
 def pupilCA(M, D, d):
@@ -180,11 +176,13 @@ def spectra(U0, M, plano, z, nEst, nLmdas):
     G0=15;G1=16;G2=17;G5=18;G8=19;K0=20;K1=21;K2=22;K3=23;K4=24;K5=25;K7=26;
     M0=27;M1=28;M2=29;M3=30;M4=31;M5=32;M6=33;M7=34;M8=35"""
 
-    fil = open("listadat.txt", "r")  # Abrir archivo de referencia para saber que estrella se eligió
+    fil = open(
+        "../data/listadat.txt", "r"
+    )  # Abrir archivo de referencia para saber que estrella se eligió
     lista = fil.readlines()
     fil.close()
     # Direccion del archivo de datos de la convolucion FILTRO,ESTRELLA
-    darch = "spectra/" + lista[nEst - 1][:-1]
+    darch = "../data/spectra/" + lista[nEst - 1][:-1]
     dat = pd.read_csv(darch, sep=",", header=None)  # datos en formato panda
     dat1 = np.array(dat)  # datos en formato numpy
     a, b = dat1.shape
@@ -217,7 +215,7 @@ def calc_rstar(mV, nEst, ua):
     %     13.9 14.4];
     OUT--> tipo, R_star: tipo espectral elegido y radio de estrella calculado respectivamente"""
     ua = 1.496e11 * ua  # distancia en metros
-    stars = pd.read_csv("estrellas.dat", sep="\t", header=None)
+    stars = pd.read_csv("../data/estrellas.dat", sep="\t", header=None)
     # PARAMETROS
     Tsol = 5780  # Temperatura del SOl en grados Kelvin
     Rsol = 6.96e8  # Radio del sol en mts
@@ -300,18 +298,22 @@ def extraer_perfil(I0, M, D, T, b):
     return (x, y)
 
 
-def calc_plano(d, lmda, ua):
+def calculate_fresnel_scale(λ, z):
+    return np.sqrt(λ * z / 2)
+
+
+def calculate_plane(object_diameter, λ, object_distance_ua):
     """Funcion para calcular el tamanio del plano (objeto y de difraccion) optimo para objetos pequenos (<10km)
     evitando el problema de escalamiento de la FFT
-    d--> tam de objeto en metros diametro
-    lmda --> long de onda en metros
-    ua --> dist del objeto en UA
-    OUT --> plano: tamanio del plano en metros (una dimension)"""
-    z = ua * 1.496e11  # dist en metros
-    fscale = np.sqrt(lmda * z / 2)  # escala de fresnel
-    Rho = d / (2 * fscale)
-    plano = (50 * d) / Rho
-    return plano
+    object_diameter --> tam de objeto en metros diametro
+    λ --> long de onda en metros
+    object_distance_ua --> dist del objeto en UA
+    OUT --> plane: tamanio del plano en metros (una dimension)"""
+    object_distance_meters = object_distance_ua * 1.496e11  # dist en metros
+    fresnel_scale = calculate_fresnel_scale(λ, object_distance_meters)  # escala de fresnel
+    Rho = object_diameter / (2 * fresnel_scale)
+    plane = (50 * object_diameter) / Rho
+    return plane
 
 
 def add_ruido(I, mV):
