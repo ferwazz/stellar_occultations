@@ -3,6 +3,8 @@ all: mutants
 module = stellar_occultations
 codecov_token = 7a2d7cd1-5e6f-49df-bc04-2bf9f8803f73
 
+.PHONY: all clean coverage format install mutants tests
+
 mutants:
 	mutmut run \
 		--paths-to-mutate stellar_occultations
