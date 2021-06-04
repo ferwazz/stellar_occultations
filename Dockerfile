@@ -1,13 +1,16 @@
-FROM python:3
+FROM python:3.9
 COPY . .
 RUN pip install --upgrade pip && pip install \
+    autopep8 \
     black \
+    codecov \
+    flake8 \
+    ipykernel \
+    matplotlib \
+    mutmut \
     numpy \
     pandas \
-    pytest==5.0.1 \
-    matplotlib \
-    ipykernel \
-    mutmut \
+    pylint \
+    pytest-cov \
+    pytest \
     rope
-
-
