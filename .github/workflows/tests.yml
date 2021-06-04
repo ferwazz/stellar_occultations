@@ -1,0 +1,36 @@
+name: Tests
+on:
+  pull_request:
+    branches:
+      - develop
+      - master
+  push:
+    branches:
+      - develop
+      - master
+jobs:
+  actions:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Copia repositorio
+      uses: actions/checkout@v2
+    - name: Construye imagen
+      run: docker build --tag stellar_occultations .
+    - name: Corre pruebas y evalúa la cobertura
+      run: docker run stellar_occultations make coverage
+    - name: Evalua resistencia a mutaciones
+      run: docker run stellar_occultations make mutants
+
+    steps:
+    - name: Copia repositorio
+      uses: actions/checkout@v2
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.8'
+    - name: Install package
+      run: |
+        python -m pip install --upgrade pip
+        make install   
+    - name: Test with pytest
+      run: make tests
