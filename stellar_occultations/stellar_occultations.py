@@ -19,24 +19,31 @@ def pol2cart(rho, phi):
     return (x, y)
 
 
-def calculate_image_grid(nPixels, plane):
-    centered_axis = np.linspace(-plane / 2, plane / 2, nPixels)
+def calculate_image_grid(n_pixels, plane):
+    centered_axis = np.linspace(-plane / 2, plane / 2, n_pixels)
     x, y = np.meshgrid(centered_axis, centered_axis)
     phi_grid, rho_grid = cart2pol(x, y)
     return phi_grid, rho_grid
 
 
-def pupilCO(nPixels, plane, object_diameter):
-    """Generar obstruccion circular"""
-    # nPixels >> tamaño matriz en pixeles
-    # plane >> tamaño de matriz en metros
-    # object_diameter >> oscurecimiento central en metros
-    phi, rho = calculate_image_grid(nPixels, plane)
+def pupilCO(n_pixels, plane, object_diameter):
+    """Genera obstruccion circular
+
+    Keyword arguments:
+    n_pixels -- matrix size in pixels
+    plane -- size of matrix in meters
+    object_diameter -- oscurecimiento central/diametro en metros
+    """
+    phi, rho = calculate_image_grid(n_pixels, plane)
     return np.double(rho >= object_diameter / 2)
 
 
 def trasladar(P, smx, smy):
-    """Trasladar una matriz en direcciones X, Y según el numero de pixeles en cada coordenada  Xpx, Ypx respectivamente... Si mx > 0 Se mueve hacia la derecha, si my > 0 se mueve hacia abajo en las graficas... y VICEVERSA"""
+    """Trasladar una matriz en direcciones X, Y 
+    según el numero de pixeles en cada coordenada  Xpx, Ypx respectivamente.
+    
+    Si mx > 0 Se mueve hacia la derecha.
+    Si my > 0 se mueve hacia abajo en las graficas y VICEVERSA"""
     MM = np.zeros(P.shape)
     x, y = MM.shape
     x = int(x / 2)
@@ -79,25 +86,20 @@ def trasladar(P, smx, smy):
 
 
 def pupil_doble(
-    M,
-    D,
-    d,
+    n_pixels,
+    plane,
+    object_diameter,
 ):
-    """Generar obstruccion tipo Binario de Contacto con la misma area de una obstruccion circular..."""
-    # M>> tamaño matriz en pixeles (solo un lado)
-    # D>> tamaño de matriz en metros
-    # d>> oscurecimiento central en metros como si fuera circular
-    r1 = (d / 2) * 0.65
-    r2 = np.sqrt((d / 2) ** 2 - (r1) ** 2)
-    d1 = r1 * 2
-    d2 = r2 * 2
-    Dx = 0.45 * d1 + 0.45 * d2  # Orientacion en X
-    # print(Dx)
-    Dy = 0
-    sepX = ((Dx / 2) / D) * M
-    # print(sepX)
-    sepY = ((Dy / 2) / D) * M
-    th, r = calculate_image_grid(M, D)
+    """Generar obstruccion tipo Binario de Contacto con la misma area de una obstruccion circular de diametro d.
+    n_pixels -- matrix size in pixels
+    plane -- size of matrix in meters
+    object_diameter -- oscurecimiento central/diametro en metros como si fuese circular
+    """
+
+    Dx, Dy, r1, r2 = calculate_binary_parameters(object_diameter)
+    sepX = calculate_separation(n_pixels, plane, Dx)
+    sepY = calculate_separation(n_pixels, plane, Dy)
+    th, r = calculate_image_grid(n_pixels, plane)
     # Generar Objetos
     P1 = np.double(r >= r1)  # Obstruccion grande
     P2 = np.double(r >= r2)  # Obstruccion pequena
@@ -106,6 +108,18 @@ def pupil_doble(
     # Binarizar
     P = P == 2
     return np.double(P)
+
+def calculate_separation(n_pixels, plane, diameter):
+    return ((diameter / 2) / plane) * n_pixels
+
+def calculate_binary_parameters(object_diameter):
+    r1 = (object_diameter / 2) * 0.65
+    r2 = np.sqrt((object_diameter / 2) ** 2 - (r1) ** 2)
+    d1 = r1 * 2
+    d2 = r2 * 2
+    Dx = 0.45 * d1 + 0.45 * d2  # Orientacion en X
+    Dy = 0
+    return Dx, Dy, r1, r2
 
 
 def pupilCA(M, D, d):
