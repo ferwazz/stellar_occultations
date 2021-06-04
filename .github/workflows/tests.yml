@@ -14,16 +14,6 @@ jobs:
     steps:
     - name: Copia repositorio
       uses: actions/checkout@v2
-    - name: Construye imagen
-      run: docker build --tag stellar_occultations .
-    - name: Corre pruebas y evalúa la cobertura
-      run: docker run stellar_occultations make coverage
-    - name: Evalua resistencia a mutaciones
-      run: docker run stellar_occultations make mutants
-
-    steps:
-    - name: Copia repositorio
-      uses: actions/checkout@v2
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
