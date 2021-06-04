@@ -1,4 +1,4 @@
-name: Tests
+name: Mutants
 on:
   pull_request:
     branches:
