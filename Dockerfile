@@ -1,4 +1,5 @@
-FROM python:3.9
+FROM python:3
+WORKDIR /workdir
 COPY . .
 RUN pip install --upgrade pip && pip install \
     autopep8 \
@@ -14,3 +15,5 @@ RUN pip install --upgrade pip && pip install \
     pytest-cov \
     pytest \
     rope
+
+CMD make
