@@ -2,9 +2,9 @@
 ![tests](https://github.com/ferwazz/stellar_occultations/actions/workflows/tests.yml/badge.svg)
 ![mutants](https://github.com/ferwazz/stellar_occultations/actions/workflows/mutants.yml/badge.svg)
 
-Python package `stellar-occultations`
+# Python package `stellar-occultations`
 
-To install use:
+## To install use:
 
 ```
 pip install git+https://github.com/ferwazz/stellar_occultations.git
