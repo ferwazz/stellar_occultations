@@ -6,6 +6,11 @@
 import numpy as np
 import pandas as pd
 
+SUN_TEMPERATURE_KELVIN = 5780  # Temperatura del SOl en grados Kelvin
+SUN_RADIUS_METERS = 6.96e8  # Radio del sol en mts
+PARSEC_IN_METERS = 3.085e16
+ASTRONOMICAL_UNIT_METERS = 1.496e11
+
 
 def cart2pol(x, y):
     rho = np.sqrt(x ** 2 + y ** 2)
@@ -38,51 +43,15 @@ def pupilCO(n_pixels, plane, object_diameter):
     return np.double(rho >= object_diameter / 2)
 
 
-def trasladar(P, smx, smy):
-    """Trasladar una matriz en direcciones X, Y 
+def trasladar_px(object_matrix, dx, dy):
+    """Trasladar una matriz en direcciones X, Y
     según el numero de pixeles en cada coordenada  Xpx, Ypx respectivamente.
-    
+
     Si mx > 0 Se mueve hacia la derecha.
-    Si my > 0 se mueve hacia abajo en las graficas y VICEVERSA"""
-    MM = np.zeros(P.shape)
-    x, y = MM.shape
-    x = int(x / 2)
-    y = int(y / 2)
-    mx = int(smx)  # Para evitar errores en los indices
-    my = int(smy)
-
-    if my == 0 or type(smy) == float:
-        # print("Ojo Desplazamiento en Y es 0, o FLOAT")
-        MM = P
-    if my > 0:
-        MM[y + my :, :] = P[y:-my, :]
-        # mover y1
-        MM[:my, :] = P[2 * y - my :, :]  # mover y2
-        MM[my : y + my, :] = P[:y, :]  # Mover y3
-    if my < 0:  # Negativos
-        MM[: y + my, :] = P[-my:y, :]
-        # mover y1
-        MM[2 * y + my :, :] = P[:-my, :]  # mover y2
-        MM[y + my : 2 * y + my, :] = P[y:, :]  # Mover y3
-
-    M2 = MM.copy()  # Hacer copia para hacer el mismo proceso en X
-
-    if mx == 0 or type(smx) == float:
-        # print("Ojo Desplazamiento en X es 0, o FLOAT")
-        M2 = MM
-
-    if mx > 0:
-        M2[:, x + mx :] = MM[:, x:-mx]
-        # mover x1
-        M2[:, :mx] = MM[:, 2 * x - mx :]  # mover x2
-        M2[:, mx : x + mx] = MM[:, :x]  # Mover x3
-    if mx < 0:  # Negativos
-        M2[:, : x + mx] = MM[:, -mx:x]
-        # mover x1
-        M2[:, 2 * x + mx :] = MM[:, :-mx]  # mover x2
-        M2[:, x + mx : 2 * x + mx] = MM[:, x:]  # Mover x3
-
-    return M2
+    Si my > 0 se mueve hacia arriba en las graficas"""
+    object_array = np.array(object_matrix)
+    P_rolled = np.roll(object_array, dx, axis=1)
+    return np.roll(P_rolled, dy, axis=0)
 
 
 def pupil_doble(
@@ -104,22 +73,22 @@ def pupil_doble(
     P1 = np.double(r >= r1)  # Obstruccion grande
     P2 = np.double(r >= r2)  # Obstruccion pequena
     # separar objetos simetricamente Usar funcion trasladar
-    P = trasladar(P1, -sepX, sepY) + trasladar(P2, sepX, sepY)
+    P = trasladar_px(P1, -sepX, sepY) + trasladar_px(P2, sepX, sepY)
     # Binarizar
     P = P == 2
     return np.double(P)
 
+
 def calculate_separation(n_pixels, plane, diameter):
-    return ((diameter / 2) / plane) * n_pixels
+    return int(np.floor(((diameter / 2) / plane) * n_pixels))
+
 
 def calculate_binary_parameters(object_diameter):
-    r1 = (object_diameter / 2) * 0.65
-    r2 = np.sqrt((object_diameter / 2) ** 2 - (r1) ** 2)
-    d1 = r1 * 2
-    d2 = r2 * 2
-    Dx = 0.45 * d1 + 0.45 * d2  # Orientacion en X
-    Dy = 0
-    return Dx, Dy, r1, r2
+    primary_radius = (object_diameter / 2) * 0.65
+    secondary_radius = np.sqrt((object_diameter / 2) ** 2 - (primary_radius) ** 2)
+    dx = 0.45 * 2 * primary_radius + 0.45 * 2 * secondary_radius
+    dy = 0
+    return dx, dy, primary_radius, secondary_radius
 
 
 def pupilCA(M, D, d):
@@ -131,7 +100,6 @@ def pupilCA(M, D, d):
     a, b = np.meshgrid(m, m)
     th, r = cart2pol(a, b)
     P = np.double(r <= d / 2)
-
     return P
 
 
@@ -218,34 +186,44 @@ def spectra(U0, M, plano, z, nEst, nLmdas):
     return In
 
 
-def calc_rstar(mV, nEst, ua):
+def calculate_star_radius(mV, spectral_type, object_distance_ua):
     """funcion para calcular los radios aparentes de estrellas
-    % mV--> magnitud Aparente
-    % nEst --> num de estrella
-    % ua --> Distancia al objeto ua
-    %Magnitudes absolutas en orden desde estrellas tipo A0 hasta M8
-    % M0=[1.5 1.7 1.8 2.0 2.1 2.2 2.4 3.0 3.3 3.5 3.7 4.0 4.3 4.4 4.7 4.9 5.0...
-    %     5.2 2.6 6.0 6.2 6.4 6.7 7.1 7.4 8.1 8.7 9.4 10.1 10.7 11.2 12.3 13.4...
-    %     13.9 14.4];
-    OUT--> tipo, R_star: tipo espectral elegido y radio de estrella calculado respectivamente"""
-    ua = 1.496e11 * ua  # distancia en metros
-    stars = pd.read_csv("../data/estrellas.dat", sep="\t", header=None)
+
+    Keyword arguments:
+    mV --> magnitud Aparente
+    spectral_type --> tipo espectral de la estrella
+    object_distance_ua --> Distancia al objeto ua
+
+    Output:
+    R_star --> radio aparente de estrella calculado"""
+
+    object_distance = ua2meters(object_distance_ua)  # distancia en metros
+    stars_data = pd.read_csv("data/estrellas.csv")
     # PARAMETROS
-    Tsol = 5780  # Temperatura del SOl en grados Kelvin
-    Rsol = 6.96e8  # Radio del sol en mts
+    star_parameters = stars_data[stars_data["Spectral_type"] == spectral_type]
+    T0 = star_parameters["Temperature"].iloc[0]  # Temperature
+    M0 = star_parameters["Absolute_magnitude"].iloc[0]  # Absolute Magnitude
+    L0 = star_parameters["Luminosity_rel"].iloc[0]  # Luminosity relative to the Sun
+    distance_pc = 10 ** ((mV - M0 + 5) / 5)
+    distance_m = parsec2meters(distance_pc)  # Convirtiendo de parsecs PCs a mts (distancia)
+    star_radius = (L0 ** 0.5) / (
+        T0 / SUN_TEMPERATURE_KELVIN
+    ) ** 2  # Radio de la estrella en SUN_RADIUS_METERS
+    alfa = (
+        SUN_RADIUS_METERS * star_radius
+    ) / distance_m  # Tamano angular de la estrella en radianes
+    aparent_radius_meters = (
+        alfa * object_distance
+    )  # Tam de la estrella en mts, RADIO...sobre el objeto
+    return aparent_radius_meters
 
-    T0 = stars[1][nEst - 1]  # Temperatura
-    M0 = stars[2][nEst - 1]  # Magnitud absoluta
-    L0 = stars[3][nEst - 1]  # Luminosidad relativa al Sol
 
-    d1 = 10 ** ((mV - M0 + 5) / 5)
-    d = 3.085e16 * d1  # Convirtiendo de parsecs PCs a mts (distancia)
-    Rst = (L0 ** 0.5) / (T0 / Tsol) ** 2  # Radio de la estrella en Rsol
-    alfa = (Rsol * Rst) / d  # Tamano angular de la estrella en radianes
-    R_star = (alfa) * ua  # Tam de la estrella en mts, RADIO...sobre el objeto
-    tipo = stars[0][nEst - 1]
+def parsec2meters(distance_pc):
+    return PARSEC_IN_METERS * distance_pc
 
-    return (tipo, R_star)
+
+def ua2meters(distance_ua):
+    return ASTRONOMICAL_UNIT_METERS * distance_ua
 
 
 def promedio_PD(I, R_star, plano, M, d):
@@ -273,7 +251,7 @@ def promedio_PD(I, R_star, plano, M, d):
         # print(resot)
         k2 = np.arange(resot, 2 * np.pi + 0.0001, resot)  # ***OJO ESTO COMIENZA EN 0
         for teta in k2:
-            mu2 = trasladar(I, reso[k1] * np.cos(teta), reso[k1] * np.sin(teta)) + mu2
+            mu2 = trasladar_px(I, reso[k1] * np.cos(teta), reso[k1] * np.sin(teta)) + mu2
             co += 1
             # print(np.min(np.min(mu2)))
 
@@ -323,7 +301,7 @@ def calculate_plane(object_diameter, λ, object_distance_ua):
     λ --> long de onda en metros
     object_distance_ua --> dist del objeto en UA
     OUT --> plane: tamanio del plano en metros (una dimension)"""
-    object_distance_meters = object_distance_ua * 1.496e11  # dist en metros
+    object_distance_meters = ua2meters(object_distance_ua)
     fresnel_scale = calculate_fresnel_scale(λ, object_distance_meters)  # escala de fresnel
     Rho = object_diameter / (2 * fresnel_scale)
     plane = (50 * object_diameter) / Rho
