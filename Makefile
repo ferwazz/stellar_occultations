@@ -26,6 +26,8 @@ clean:
 	rm --recursive --force tests/__pycache__
 	rm --recursive --force stellar_occultations/__pycache__
 	rm --recursive --force stellar_occultations.egg-info
+	rm --force coverage.xml
+	rm --force .coverage
 	rm --force .mutmut-cache
 
 coverage: install
