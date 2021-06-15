@@ -19,4 +19,3 @@ build_demo:
 
 run_demo:
 	docker run --publish 8080:8888 --rm stellar_occultations/demo
-```
