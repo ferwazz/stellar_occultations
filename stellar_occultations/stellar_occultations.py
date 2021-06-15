@@ -153,28 +153,19 @@ def fresnel(U0, M, plano, z, lmda):
     return I
 
 
-def spectra(U0, M, plano, z, nEst, nLmdas):
-    """listadat.txt--> A0=1;A1=2;A2=3;A3=4;A4=5;A5=6;A7=7;F0=8;F2=9;F3=10;F5=11;F6=12;F7=13;F8=14
-    G0=15;G1=16;G2=17;G5=18;G8=19;K0=20;K1=21;K2=22;K3=23;K4=24;K5=25;K7=26;
-    M0=27;M1=28;M2=29;M3=30;M4=31;M5=32;M6=33;M7=34;M8=35"""
-
-    fil = open(
-        "../data/listadat.txt", "r"
-    )  # Abrir archivo de referencia para saber que estrella se eligió
-    lista = fil.readlines()
-    fil.close()
-    # Direccion del archivo de datos de la convolucion FILTRO,ESTRELLA
-    darch = "../data/spectra/" + lista[nEst - 1][:-1]
-    dat = pd.read_csv(darch, sep=",", header=None)  # datos en formato panda
-    dat1 = np.array(dat)  # datos en formato numpy
-    a, b = dat1.shape
+def spectra(U0, M, plano, z, spectral_type, nLmdas):
+    star_parameters = select_data_by_spectraltype(spectral_type)
+    file_path = "data/spectra/" + ["Spectra_filename"].iloc[0] # Direccion del archivo de datos de la convolucion FILTRO,ESTRELLA
+    convolution_df = pd.read_csv(file_path, sep=",", header=None)  # datos en formato panda
+    convolution_data_array = np.array(convolution_df)  # datos en formato numpy
+    a, b = convolution_data_array.shape
     ind = np.round(np.linspace(0, a - 1, nLmdas))  # indices para lambda y peso
     acc = np.zeros((U0.shape))
     cont = 1
 
     for k in ind:
-        lamda = dat1[int(k)][0] * 1e-10
-        peso = dat1[int(k)][1]
+        lamda = convolution_data_array[int(k)][0] * 1e-10
+        peso = convolution_data_array[int(k)][1]
 
         I = fresnel(U0, M, plano, z, lamda) * peso
         # print(lamda)
@@ -186,8 +177,13 @@ def spectra(U0, M, plano, z, nEst, nLmdas):
     return In
 
 
+def select_data_by_spectraltype(spectral_type):
+    stars_data = pd.read_csv("data/estrellas.csv")
+    return stars_data[stars_data["Spectral_type"] == spectral_type]
+
+
 def calculate_star_radius(mV, spectral_type, object_distance_ua):
-    """funcion para calcular los radios aparentes de estrellas
+    """Funcion para calcular los radios aparentes de estrellas
 
     Keyword arguments:
     mV --> magnitud Aparente
@@ -198,9 +194,8 @@ def calculate_star_radius(mV, spectral_type, object_distance_ua):
     R_star --> radio aparente de estrella calculado"""
 
     object_distance = ua2meters(object_distance_ua)  # distancia en metros
-    stars_data = pd.read_csv("data/estrellas.csv")
-    # PARAMETROS
-    star_parameters = stars_data[stars_data["Spectral_type"] == spectral_type]
+
+    star_parameters = select_data_by_spectraltype(spectral_type)
     T0 = star_parameters["Temperature"].iloc[0]  # Temperature
     M0 = star_parameters["Absolute_magnitude"].iloc[0]  # Absolute Magnitude
     L0 = star_parameters["Luminosity_rel"].iloc[0]  # Luminosity relative to the Sun
@@ -227,11 +222,13 @@ def ua2meters(distance_ua):
 
 
 def promedio_PD(I, R_star, plano, M, d):
-    """I es la imagen del patron de difraccion en intensidad
-    R_star, es el radio aparente de la estrella mts--> Calcular con: calc_rstar()
-    plano, tamano de la pantalla blanca diametro mts
-    M,    tamano de la matriz en pixeles
-    d,    diametro del objeto en mts"""
+    """    
+    Keyword arguments:
+    I --> es la imagen del patron de difraccion en intensidad
+    R_star --> es el radio aparente de la estrella mts--> Calcular con: calc_rstar()
+    plano --> tamano de la pantalla blanca diametro mts
+    M --> tamano de la matriz en pixeles
+    d -->  diametro del objeto en mts"""
     star_px = ((R_star) / plano) * M
     obj_px = ((d / 4) / plano) * M
     div = np.ceil(star_px / obj_px)

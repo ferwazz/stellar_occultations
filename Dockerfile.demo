@@ -1,11 +1,12 @@
 
 FROM jupyter/minimal-notebook
-COPY examples/ /workdir/
-COPY examples/data /workdir/data
+WORKDIR /workdir
+COPY examples/ /workdir/examples
+COPY data/ /workdir/data
 RUN pip install \
     git+https://github.com/ferwazz/stellar_occultations.git \
     matplotlib \
     pandas
 USER root
-WORKDIR /workdir
+
 CMD ["bash", "-c", "umask 000 && jupyter lab --ip=0.0.0.0 --allow-root --NotebookApp.token=''"]
